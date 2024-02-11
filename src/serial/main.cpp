@@ -77,7 +77,6 @@ int main(int argc, char ** argv) {
             break;
         }
 
-        std::vector <std::string> reply;
         char *prev;
         char *token = strtok(buf_in, "\n");
 
@@ -93,7 +92,7 @@ int main(int argc, char ** argv) {
                 }
 
                 kvstore[key] = value;
-                reply.push_back("FIN");
+                send(new_fd, "FIN\n", 4, 0);
             }
             else if (strcmp(token, "READ") == 0) {
                 // handle READ operations
@@ -105,15 +104,19 @@ int main(int argc, char ** argv) {
                 }
                 
                 if (kvstore.count(key) > 0) {
-                    reply.push_back(kvstore[key]);
+                    std::string res = kvstore[key];
+                    res += "\n";
+                    send(new_fd, res.c_str(), res.size(), 0);
                 }
                 else {
-                    reply.push_back("NULL");
+                    send(new_fd, "NULL\n", 5, 0);
                 }
             }
             else if (strcmp(token, "COUNT") == 0) {
                 // handle COUNT OPERATIONS
-                reply.push_back(std::to_string(kvstore.size()));
+                std::string res = std::to_string(kvstore.size());
+
+                send(new_fd, res.c_str(), res.size(), 0);
             }
             else if (strcmp(token, "DELETE") == 0) {
                 // handle DELETE operations
@@ -125,21 +128,21 @@ int main(int argc, char ** argv) {
 
                 if (kvstore.count(key) > 0) {
                     kvstore.erase(key);
-                    reply.push_back("FIN");
+                    send(new_fd, "FIN\n", 4, 0);
                 }
                 else {
-                    reply.push_back("NULL");
+                    send(new_fd, "NULL\n", 5, 0);
                 }
             }
             else if (strcmp(token, "END") == 0) {
                 // handle sending reply to client
-                std::string result = std::accumulate(std::begin(reply), std::end(reply), std::string(),
+                /* std::string result = std::accumulate(std::begin(reply), std::end(reply), std::string(),
                         [](const std::string& accumulated, const std::string& current) {
                             return accumulated.empty() ? current : accumulated + "\n" + current;
                         });
-
-                result += "\n\n";
-                send(new_fd, result.c_str(), result.size(), 0);
+                */
+                
+                send(new_fd, "\n", 1, 0);
                 close(new_fd);
             }
             

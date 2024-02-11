@@ -90,8 +90,6 @@ int main(int argc, char ** argv) {
         pthread_mutex_lock(&mutex_i);
         i_threads++;
         pthread_mutex_unlock(&mutex_i);
-
-        pthread_detach(thid);
     }
 
     close(sockfd);
