@@ -24,17 +24,18 @@
 
 #define BACKLOG         128
 #define BUFF_SIZE       1024
-#define NUM_THREADS     10
 
 std::unordered_map <std::string, std::string> kvstore;
-int i_threads = 0;
 pthread_mutex_t mutex_store = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex_i = PTHREAD_MUTEX_INITIALIZER;
 
 void* get_in_addr(struct sockaddr *);
 int create_socket(const char *, struct addrinfo *);
 void handle_incomplete(int);
 void* handle_requests(void *);
+void handle_incomplete_2(int);
+void handle_incomplete_3(int);
+void handle_incomplete_4(int);
+void handle_incomplete_5(int);
 
 int main(int argc, char ** argv) {
     int sockfd, rv;
@@ -67,9 +68,6 @@ int main(int argc, char ** argv) {
 
     while(1) {
         
-        // busy waiting if no thread available
-        while(i_threads >= NUM_THREADS);
-
         sin_size = sizeof their_addr;
         if ((new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size)) == -1) {
             perror("server: accept");
@@ -86,10 +84,6 @@ int main(int argc, char ** argv) {
             fprintf(stderr, "server: error creating thread: %d\n", rv);
             exit(1);
         }
-
-        pthread_mutex_lock(&mutex_i);
-        i_threads++;
-        pthread_mutex_unlock(&mutex_i);
     }
 
     close(sockfd);
@@ -151,10 +145,26 @@ int create_socket(const char *portno, struct addrinfo *hints) {
 }
 
 void handle_incomplete(int new_fd) {
-    send(new_fd, "NULL\n", 5, 0);
+    send(new_fd, "INCP\n", 5, 0);
     close(new_fd);
 }
 
+void handle_incomplete_2(int new_fd) {
+    send(new_fd, "INC2\n", 5, 0);
+    close(new_fd);
+}
+void handle_incomplete_3(int new_fd) {
+    send(new_fd, "INC3\n", 5, 0);
+    close(new_fd);
+}
+void handle_incomplete_4(int new_fd) {
+    send(new_fd, "INCK\n", 5, 0);
+    close(new_fd);
+}
+void handle_incomplete_5(int new_fd) {
+    send(new_fd, "INCV\n", 5, 0);
+    close(new_fd);
+}
 void* handle_requests(void *fd) {
     long new_fd = (long) fd;
     int rv;
@@ -167,17 +177,22 @@ void* handle_requests(void *fd) {
 
     std::vector <std::string> reply;
     char *prev;
-    char *token = strtok(buf_in, "\n");
+    char *placeholder = buf_in;
+    char *token = strtok_r(placeholder, "\n", &placeholder);
 
     while (token != NULL) {
         if (strcmp(token, "WRITE") == 0) {
             // handle WRITE operations
-            char *key = strtok(NULL, "\n");
-            char *value = strtok(NULL, "\n") + 1;
+            char *key = strtok_r(placeholder, "\n", &placeholder);
+            char *value = strtok_r(placeholder, "\n", &placeholder) + 1;
 
-            if (key == NULL || value == NULL) {
-                handle_incomplete(new_fd);
+            if (key == NULL) {
+                handle_incomplete_4(new_fd);
                 break;
+            }
+
+            if (value == NULL) {
+                handle_incomplete_5(new_fd);
             }
             
             pthread_mutex_lock(&mutex_store);
@@ -188,10 +203,10 @@ void* handle_requests(void *fd) {
         }
         else if (strcmp(token, "READ") == 0) {
             // handle READ operations
-            char *key = strtok(NULL, "\n");
+            char *key = strtok_r(placeholder, "\n", &placeholder);
 
-            if (key == NULL) {
-                handle_incomplete(new_fd);
+                if (key == NULL) {
+                handle_incomplete_2(new_fd);
                 break;
             }
 
@@ -208,9 +223,9 @@ void* handle_requests(void *fd) {
         }
         else if (strcmp(token, "DELETE") == 0) {
             // handle DELETE operations
-            char *key = strtok(NULL, "\n");
+            char *key = strtok_r(placeholder, "\n", &placeholder);
             if (key == NULL) {
-                handle_incomplete(new_fd);
+                handle_incomplete_3(new_fd);
                 break;
             }
 
@@ -239,17 +254,17 @@ void* handle_requests(void *fd) {
         }
         
         prev = token;
-        token = strtok(NULL, "\n");
+        token = strtok_r(placeholder, "\n", &placeholder);
 
         if (token == NULL && strcmp(prev, "END") != 0) {
-            handle_incomplete(new_fd);
+            char res[100];
+            strcpy(res, prev);
+            send(new_fd, res, sizeof(res), 0); 
+            send(new_fd, "\n\n", 2, 0);
+            close(new_fd);
             break;
         }
     }
-    
-    pthread_mutex_lock(&mutex_i);
-    i_threads--;
-    pthread_mutex_unlock(&mutex_i);
 
     pthread_exit(NULL);
 }

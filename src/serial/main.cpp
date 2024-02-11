@@ -115,7 +115,7 @@ int main(int argc, char ** argv) {
             else if (strcmp(token, "COUNT") == 0) {
                 // handle COUNT OPERATIONS
                 std::string res = std::to_string(kvstore.size());
-
+                res += "\n";
                 send(new_fd, res.c_str(), res.size(), 0);
             }
             else if (strcmp(token, "DELETE") == 0) {
