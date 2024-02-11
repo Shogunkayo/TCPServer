@@ -1,5 +1,8 @@
 # Multithreaded TCP Server 
 
+Name: Gautham P Atreyas
+SRN: PES1UG21CS206
+
 HP Assignement: PThreads
 
 Build a multi-threaded server in C++, make use of PThreads for parallel programming.
