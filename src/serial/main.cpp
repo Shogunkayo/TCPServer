@@ -214,6 +214,6 @@ int create_socket(const char *portno, struct addrinfo *hints) {
 }
 
 void handle_incomplete(int new_fd) {
-    send(new_fd, "NULL\n", 5, 0);
+    send(new_fd, "INCP\n", 5, 0);
     close(new_fd);
 }

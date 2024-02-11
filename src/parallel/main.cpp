@@ -24,26 +24,23 @@
 
 #define BACKLOG         128
 #define BUFF_SIZE       1024
+#define NUM_THREADS     10
 
 std::unordered_map <std::string, std::string> kvstore;
 pthread_mutex_t mutex_store = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_i = PTHREAD_MUTEX_INITIALIZER;
+int sockfd;
 
 void* get_in_addr(struct sockaddr *);
 int create_socket(const char *, struct addrinfo *);
+void* start_thread(void *);
+void handle_requests(int);
 void handle_incomplete(int);
-void* handle_requests(void *);
-void handle_incomplete_2(int);
-void handle_incomplete_3(int);
-void handle_incomplete_4(int);
-void handle_incomplete_5(int);
 
 int main(int argc, char ** argv) {
-    int sockfd, rv;
-    long new_fd;
-    socklen_t sin_size;
-    char s[INET6_ADDRSTRLEN];
+    int rv;
+    pthread_t threads[NUM_THREADS];
     struct addrinfo hints;
-    struct sockaddr_storage their_addr;
 
     if (argc != 2) {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -64,27 +61,19 @@ int main(int argc, char ** argv) {
  
     #ifdef DEBUG
         printf("server: waiting for connections...\n");
+        printf("server: creating thread pool...\n");
     #endif
-
-    while(1) {
-        
-        sin_size = sizeof their_addr;
-        if ((new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size)) == -1) {
-            perror("server: accept");
-            continue;
-        }
-
-        #ifdef DEBUG
-            inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-            printf("server: got connection from %s\n", s);
-        #endif
-        
-        pthread_t thid;
-        if ((rv = pthread_create(&thid, NULL, handle_requests, (void *) new_fd)) != 0) {
+    
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if ((rv = pthread_create(&threads[i], NULL, start_thread, NULL)) != 0) {
             fprintf(stderr, "server: error creating thread: %d\n", rv);
             exit(1);
         }
+
+        pthread_detach(threads[i]);
     }
+
+    while(1);
 
     close(sockfd);
     pthread_exit(NULL);
@@ -144,29 +133,23 @@ int create_socket(const char *portno, struct addrinfo *hints) {
     return sockfd;
 }
 
-void handle_incomplete(int new_fd) {
-    send(new_fd, "INCP\n", 5, 0);
-    close(new_fd);
+void* start_thread(void* args) {
+    int rv, new_fd;
+    struct sockaddr_storage their_addr;
+    socklen_t sin_size = sizeof(their_addr);
+
+    while (1) {
+        pthread_mutex_lock(&mutex_i);
+        if ((new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size)) == -1) {
+            perror("server: accept");
+            continue;
+        }
+        pthread_mutex_unlock(&mutex_i);
+        handle_requests(new_fd);
+    }
 }
 
-void handle_incomplete_2(int new_fd) {
-    send(new_fd, "INC2\n", 5, 0);
-    close(new_fd);
-}
-void handle_incomplete_3(int new_fd) {
-    send(new_fd, "INC3\n", 5, 0);
-    close(new_fd);
-}
-void handle_incomplete_4(int new_fd) {
-    send(new_fd, "INCK\n", 5, 0);
-    close(new_fd);
-}
-void handle_incomplete_5(int new_fd) {
-    send(new_fd, "INCV\n", 5, 0);
-    close(new_fd);
-}
-void* handle_requests(void *fd) {
-    long new_fd = (long) fd;
+void handle_requests(int new_fd) {
     int rv;
     char buf_in[BUFF_SIZE];
 
@@ -187,12 +170,12 @@ void* handle_requests(void *fd) {
             char *value = strtok_r(placeholder, "\n", &placeholder) + 1;
 
             if (key == NULL) {
-                handle_incomplete_4(new_fd);
+                handle_incomplete(new_fd);
                 break;
             }
 
             if (value == NULL) {
-                handle_incomplete_5(new_fd);
+                handle_incomplete(new_fd);
             }
             
             pthread_mutex_lock(&mutex_store);
@@ -206,7 +189,7 @@ void* handle_requests(void *fd) {
             char *key = strtok_r(placeholder, "\n", &placeholder);
 
                 if (key == NULL) {
-                handle_incomplete_2(new_fd);
+                handle_incomplete(new_fd);
                 break;
             }
 
@@ -225,7 +208,7 @@ void* handle_requests(void *fd) {
             // handle DELETE operations
             char *key = strtok_r(placeholder, "\n", &placeholder);
             if (key == NULL) {
-                handle_incomplete_3(new_fd);
+                handle_incomplete(new_fd);
                 break;
             }
 
@@ -257,14 +240,14 @@ void* handle_requests(void *fd) {
         token = strtok_r(placeholder, "\n", &placeholder);
 
         if (token == NULL && strcmp(prev, "END") != 0) {
-            char res[100];
-            strcpy(res, prev);
-            send(new_fd, res, sizeof(res), 0); 
-            send(new_fd, "\n\n", 2, 0);
-            close(new_fd);
+            handle_incomplete(new_fd);
             break;
         }
     }
 
-    pthread_exit(NULL);
+}
+
+void handle_incomplete(int new_fd) {
+    send(new_fd, "INCP\n", 5, 0);
+    close(new_fd);
 }
