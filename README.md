@@ -1,7 +1,7 @@
 # Multithreaded TCP Server 
 
-Name: Gautham P Atreyas
-SRN: PES1UG21CS206
+# Name: Gautham P Atreyas
+# SRN: PES1UG21CS206
 
 HP Assignement: PThreads
 
